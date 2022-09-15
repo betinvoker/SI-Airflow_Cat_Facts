@@ -1,12 +1,14 @@
-from airflow import DAG
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.providers.http.sensors.http import HttpSensor
-from airflow.providers.http.operators.http import SimpleHttpOperator
-from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 import json
-from pandas import json_normalize
 from datetime import datetime
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.providers.http.operators.http import SimpleHttpOperator
+from airflow.providers.http.sensors.http import HttpSensor
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from pandas import json_normalize
+
 
 def _process_cat_fact(ti):
     fact = ti.xcom_pull(task_ids="extract_cat_fact")
@@ -14,15 +16,15 @@ def _process_cat_fact(ti):
         'fact': fact['fact'],
         'length': fact['length']
     })
-    processed_fact.to_csv('/tmp/processed_cat_facts.csv', index=None, header=False)
+    processed_fact.to_csv('/tmp/processed_cat_facts.csv', index=None, header=False, sep=';')
 
 
 def _store_cat_fact():
     hook = PostgresHook(postgres_conn_id='postgres')
-    hook.copy_expert(sql="COPY cat_facts FROM stdin WITH DELIMITER ',' ",
+    hook.copy_expert(sql="COPY cat_facts FROM stdin WITH DELIMITER ';' ",
                      filename='/tmp/processed_cat_facts.csv')
 
-with DAG('cat_facts_processing', start_date=datetime(2022,1,1), schedule_interval='*/30 * * * *', catchup=False) as dag:
+with DAG('cat_facts_processing', start_date=datetime(2022,1,1), schedule_interval='*/5 * * * *', catchup=False) as dag:
     create_table = PostgresOperator(
         postgres_conn_id = 'postgres',
         task_id = 'create_table',
